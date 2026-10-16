@@ -1,0 +1,13 @@
+OWASP LLM Top 10 - Security Notes
+
+LLM01 - Prompt Injection
+Attackers manipulate LLM inputs to override instructions. Direct injection happens through user input. Indirect injection happens through external data sources like documents or web pages the LLM retrieves.
+
+LLM02 - Insecure Output Handling
+LLM output is passed to other systems without validation. Can lead to XSS, SSRF, or remote code execution. Always sanitize LLM responses before using them downstream.
+
+LLM06 - Sensitive Information Disclosure
+LLMs may reveal confidential data from training or context. Implement output filtering and avoid putting secrets in prompts. Use PII detection on all outputs.
+
+LLM08 - Excessive Agency
+LLMs given too many permissions can cause harm when manipulated. Apply least-privilege principles to all tools and actions an LLM agent can take.
