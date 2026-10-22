@@ -22,7 +22,7 @@ INJECTION_PATTERNS = [
     r"act\s+as\s+(if\s+you\s+(are|were)|a|an|DAN|evil|unrestricted)",
     r"you\s+are\s+now\s+(a|an|DAN|evil|unrestricted|jailbroken)",
     r"pretend\s+(you\s+are|to\s+be)\s+(a|an|evil|uncensored|free)",
-    r"(DAN|jailbreak|unrestricted\s+mode|developer\s+mode|god\s+mode)",
+    r"\b(DAN|jailbreak\s+me|jailbroken|unrestricted\s+mode|developer\s+mode|god\s+mode)\b",
     r"roleplay\s+as",
 
     # System prompt extraction
@@ -38,11 +38,27 @@ INJECTION_PATTERNS = [
     r"new\s+conversation\s+starts?\s+here",
     r"end\s+of\s+system\s+prompt",
     r"human\s*:\s*ignore",
+        # Polite/conditional framing (evasion)
+    r"(just|please|can you|could you).{0,30}ignore.{0,20}(instructions?|rules?|guidelines?)",
+    r"i\s+know\s+you\s+can.t.{0,30}but.{0,20}ignore",
+
+    # Persona/mode switching
+    r"(developer|god|unrestricted)\s+mode",
+    r"(restrictions?|filters?|rules?|guidelines?)\s+(are|is)\s+(disabled?|off|removed?|gone)",
+    r"trained\s+without\s+(safety|filters?|restrictions?|guidelines?)",
+
+    # "Repeat everything" style
+    r"repeat\s+everything\s+(above|before|prior)",
+    r"output\s+your\s+(full|entire|complete)\s+(configuration|prompt|instructions?|rules?)",
 ]
 
 # Compile all patterns once (case-insensitive)
 COMPILED_PATTERNS = [re.compile(p, re.IGNORECASE) for p in INJECTION_PATTERNS]
-
+def normalize_input(text: str) -> str:
+    """Collapse whitespace, normalize case for pattern matching."""
+    # Collapse multiple spaces/newlines into single space
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
 
 # ── Core Guard Function ─────────────────────────────────────────────────────────
 def check_input(user_input: str) -> dict:
@@ -81,8 +97,9 @@ def check_input(user_input: str) -> dict:
         return result
 
     # ── Check 3: Injection pattern matching ───────────────────────────────────
+    normalized = normalize_input(user_input)
     for i, pattern in enumerate(COMPILED_PATTERNS):
-        match = pattern.search(user_input)
+        match = pattern.search(normalized)
         if match:
             result["allowed"] = False
             result["reason"] = (
