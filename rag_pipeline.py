@@ -4,6 +4,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
+from audit_log import log_query_allowed, log_query_blocked, log_response_clean, log_response_flagged
 
 load_dotenv()
 
@@ -32,6 +33,8 @@ retriever = vectordb.as_retriever(search_kwargs={"k": 3})
 
 from langchain_core.messages import HumanMessage
 from input_guard import check_input, log_blocked_input
+from input_guard import check_input, log_blocked_input
+from output_guard import check_output
 
 # ── Secured query loop ─────────────────────────────────────────────────────────
 print("\nSecured RAG Pipeline ready. Type 'quit' to exit.\n")
@@ -48,16 +51,27 @@ while True:
 
     if not guard_result["allowed"]:
         print(f"\n🚫 BLOCKED: {guard_result['reason']}\n")
-        log_blocked_input(query, guard_result)
+        log_query_blocked(query, guard_result["reason"], guard_result["threat_type"])
         continue
 
     # Safe — retrieve + generate
     relevant_docs = retriever.invoke(query)
+    log_query_allowed(query)
     context = "\n\n".join([doc.page_content for doc in relevant_docs])
 
     response = llm.invoke([HumanMessage(content=(
         f"Answer based only on this context:\n\n{context}\n\nQuestion: {query}"
     ))])
 
-    print(f"\n✅ Answer: {response.content}")
-    print(f"   Sources: {len(relevant_docs)} chunks\n")
+        # Run output guard BEFORE showing the answer
+    out_result = check_output(response.content)
+
+    if not out_result["safe"]:
+        log_response_flagged(query, response.content, out_result["issues"], out_result["risk_level"])
+        print(f"\n⚠️  OUTPUT FLAGGED (risk: {out_result['risk_level']})")
+        for issue in out_result["issues"]:
+            print(f"   → {issue['detail']}")
+        print(f"\n✅ Answer (sanitized): {out_result['sanitized']}")
+    else:
+        log_response_clean(query, response.content, len(relevant_docs))
+        print(f"\n✅ Answer: {response.content}")
